@@ -71,6 +71,11 @@ fi
 [ ! -e "$HOME/.local/bin/maprisma" ] || { echo 'FAIL: probe installed'; exit 1; }
 grep -q 'KeyboardPanel' "$here/BarWidget.qml" || { echo 'FAIL: install dialog missing'; exit 1; }
 grep -q 'Install AppImage' "$here/I18n.js" || { echo 'FAIL: install action missing'; exit 1; }
+# QML loads I18n.js only with ".pragma library"; without the dot the bar icon fails.
+[ "$(head -n 1 "$here/I18n.js")" = '.pragma library' ] || { echo 'FAIL: I18n.js must start with .pragma library'; exit 1; }
+if command -v node >/dev/null 2>&1; then
+  tail -n +2 "$here/I18n.js" | node --check - 2>/dev/null || { echo 'FAIL: I18n.js is not valid JavaScript'; exit 1; }
+fi
 for language in en de es fr it nl pl pt; do
   grep -q "  $language:" "$here/I18n.js" || { echo "FAIL: missing $language text"; exit 1; }
 done

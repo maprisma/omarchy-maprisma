@@ -1,4 +1,4 @@
-pragma library
+.pragma library
 
 var words = {
   en: { title: "Install Maprisma?", body: "The Maprisma app is not on this PC yet. Install the latest AppImage for your user account? Its SHA-256 checksum is checked before it is opened. No administrator password is needed.", cancel: "Not now", install: "Install AppImage" },
