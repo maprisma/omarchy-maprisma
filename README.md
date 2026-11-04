@@ -1,6 +1,22 @@
 # Maprisma for Omarchy
 
 A bar icon for **Maprisma**: your AI agents, local LLMs, models, MCP servers and skills on one map.
+New to AI tools? The bar icon installs the app for you.
+
+![Maprisma: the map, drawing a connection, Ask AI and the one-click install](preview.png)
+
+---
+
+## Get started in three clicks
+
+1. **Add the plugin:** `omarchy plugin add https://github.com/maprisma/omarchy-maprisma`
+2. **Click the robot icon in the bar.** Maprisma isn't on your PC yet, so a small panel asks
+   **Install Maprisma?** Choose **Install AppImage** (or **Not now**: nothing changes).
+3. **Watch it install.** A terminal downloads the latest Maprisma release from GitHub with a progress bar,
+   compares it with the release's SHA-256 checksum, puts it in `~/.local/bin/` for your user and opens
+   Maprisma. No administrator password, no package manager, nothing running in the background.
+
+From then on the same icon shows or hides Maprisma.
 
 ---
 
@@ -8,26 +24,26 @@ A bar icon for **Maprisma**: your AI agents, local LLMs, models, MCP servers and
 
 - **One map of your AI setup.** Coding agents (Claude Code, Codex, Copilot, Cursor CLI, Gemini, OpenCode,
   Pi, Hermes, …), local LLMs (llama.cpp, Ollama, LM Studio, vLLM, Jan, KoboldCpp) with their models, and
-  MCP servers and skills, as cards and lines.
-- **Connect by drawing.** Draw a line from an agent to a model, an MCP server or a skill folder. Every change
-  is shown as a preview first, written with a backup, and can be undone.
+  MCP servers and skills, as cards. A line means a real connection; red only marks a real problem.
+- **Connect by drawing.** Draw a line from an agent to a provider, a model, an MCP server or a skill folder.
+  A small dialog asks first, a note confirms it with **Undo**, and a line that cannot work says why.
+  Bigger changes show a full preview; every change is written with a backup.
+- **Agents working together.** When one agent hands work to another (Claude Code asking Codex, say), their
+  lines take their own colour, with an arrow to the agent being used.
 - **Agents at a glance.** Each agent's plan, limits and usage, what it still needs (with the command that
   fixes it), and a Security check of what it may do without asking you, each choice explained with its risk.
 - **Local LLMs that fit your card.** Install llama.cpp, Ollama and others with every download checked
   against its release's SHA-256, download models, and let Maprisma measure each llama.cpp model on your
   graphics card for its best context and batch size.
-- **MCP servers and skills** found on your computer or on the web, with who published each server and how
-  it runs.
-- **Ask AI** from the header: an agent or a local LLM proposes changes from a fixed list of actions;
-  nothing runs without your click.
+- **Ask AI** from the header: example questions show what it can do. An agent or a local LLM proposes any
+  change you could draw on the map, plus finding models and MCP servers; it goes through the same preview,
+  and nothing runs without your click.
 - **Omarchy look:** follows your Omarchy theme and window corners, 8 interface languages, `F12` window
   screenshots with a note.
 
 ---
 
 ## Install
-
-Add the plugin first, then click its bar icon:
 
 ```sh
 omarchy plugin add https://github.com/maprisma/omarchy-maprisma
@@ -52,7 +68,7 @@ To remove the app later: `rm ~/.local/bin/maprisma`.
 Without a terminal launcher, the bar icon says so in a notification. Install by hand instead:
 
 ```sh
-v=0.12.0; f=Maprisma-$v-x86_64.AppImage
+v=0.13.0; f=Maprisma-$v-x86_64.AppImage
 cd "$(mktemp -d)"
 curl -fLO "https://github.com/maprisma/maprisma/releases/download/v$v/$f"
 curl -fLO "https://github.com/maprisma/maprisma/releases/download/v$v/$f.sha256"
