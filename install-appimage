@@ -43,11 +43,17 @@ download() {
 }
 
 [ "$(uname -m)" = x86_64 ] || fail 'The current AppImage is for x86_64 PCs.'
-for tool in curl jq sha256sum awk mktemp install ln flock setsid; do
+for tool in curl jq sha256sum awk mktemp mkdir install ln flock setsid; do
   command -v "$tool" >/dev/null 2>&1 || fail "The installer needs $tool."
 done
 # One install at a time: a second click while this one runs waits for nothing.
-lock=${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/maprisma-install.lock
+# The lock lives in a folder only this user can write: never a shared /tmp, where another account
+# could plant a symlink for the open below to truncate.
+lock_dir=${XDG_RUNTIME_DIR:-$HOME/.cache}
+mkdir -p -m 700 "$lock_dir" 2>/dev/null || :
+[ -d "$lock_dir" ] && [ ! -L "$lock_dir" ] && [ -O "$lock_dir" ] || fail 'Could not prepare the install.'
+lock=$lock_dir/maprisma-install.lock
+[ ! -L "$lock" ] || fail 'Could not prepare the install.'
 exec 9>"$lock" || fail 'Could not prepare the install.'
 flock -n 9 || fail 'Maprisma is already being installed in another window.'
 target_dir=$HOME/.local/bin

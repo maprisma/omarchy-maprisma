@@ -5,7 +5,7 @@ here=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 work=$(mktemp -d)
 trap 'rm -rf -- "$work"' EXIT HUP INT TERM
 mkdir -p "$work/bin" "$work/with" "$work/release" "$work/tmp" "$work/home"
-for tool in dirname uname jq sha256sum awk mktemp install ln wc rm cp flock setsid sleep; do
+for tool in dirname uname jq sha256sum awk mktemp mkdir install ln wc rm cp flock setsid sleep; do
   ln -s "$(command -v "$tool")" "$work/bin/$tool"
 done
 cat > "$work/bin/xdg-terminal-exec" <<'SH'
@@ -111,6 +111,20 @@ HOME="$work/busy-home" PATH="$work/bin" /bin/sh "$here/install-appimage" > "$wor
 grep -q 'already being installed' "$work/failure" || { echo 'FAIL: second install not explained'; exit 1; }
 [ ! -e "$work/busy-home/.local/bin/maprisma" ] || { echo 'FAIL: second install installed'; exit 1; }
 exec 8>&-
+
+# Without XDG_RUNTIME_DIR the lock goes to the user's own ~/.cache, never a shared folder; a symlink
+# planted at the lock's name is refused and its target stays as it was.
+mkdir -p "$work/nolock-home"
+( unset XDG_RUNTIME_DIR; HOME="$work/nolock-home" MAPRISMA_TEST_NO_RELEASE=1 PATH="$work/bin" \
+  /bin/sh "$here/install-appimage" > "$work/failure" 2>&1 ) && { echo 'FAIL: no-runtime-dir run succeeded'; exit 1; }
+[ -f "$work/nolock-home/.cache/maprisma-install.lock" ] || { echo 'FAIL: lock not in ~/.cache'; exit 1; }
+mkdir -p "$work/planted-home/.cache"
+printf 'keep\n' > "$work/victim"
+ln -s "$work/victim" "$work/planted-home/.cache/maprisma-install.lock"
+( unset XDG_RUNTIME_DIR; HOME="$work/planted-home" PATH="$work/bin" \
+  /bin/sh "$here/install-appimage" > "$work/failure" 2>&1 ) && { echo 'FAIL: planted lock accepted'; exit 1; }
+[ "$(cat "$work/victim")" = keep ] || { echo 'FAIL: planted lock truncated its target'; exit 1; }
+[ ! -e "$work/planted-home/.local/bin/maprisma" ] || { echo 'FAIL: planted lock installed'; exit 1; }
 
 mkdir "$work/failed-home"
 HOME="$work/failed-home" MAPRISMA_TEST_NO_RELEASE=1 \
