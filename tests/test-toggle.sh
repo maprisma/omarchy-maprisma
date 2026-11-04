@@ -5,7 +5,7 @@ here=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 work=$(mktemp -d)
 trap 'rm -rf -- "$work"' EXIT HUP INT TERM
 mkdir -p "$work/bin" "$work/with" "$work/release" "$work/tmp" "$work/home"
-for tool in dirname uname jq sha256sum awk mktemp mkdir install ln wc rm cp flock setsid sleep stat; do
+for tool in dirname uname jq sha256sum awk mktemp mkdir install ln wc rm cp flock setsid sleep stat id; do
   ln -s "$(command -v "$tool")" "$work/bin/$tool"
 done
 cat > "$work/bin/xdg-terminal-exec" <<'SH'
@@ -156,6 +156,16 @@ mkdir -p "$work/private-bin-home/.local/bin"; chmod 700 "$work/private-bin-home/
 HOME="$work/private-bin-home" PATH="$work/bin" /bin/sh "$here/install-appimage" > "$work/failure" 2>&1 \
   || { echo 'FAIL: install into a private ~/.local/bin'; cat "$work/failure"; exit 1; }
 [ "$(stat -c %a "$work/private-bin-home/.local/bin")" = 700 ] || { echo 'FAIL: private ~/.local/bin opened up'; exit 1; }
+# ~/.local that others may write to (they could swap bin after the check): refused, nothing written.
+mkdir -p "$work/shared-local-home/.local/bin"; chmod 777 "$work/shared-local-home/.local"
+HOME="$work/shared-local-home" PATH="$work/bin" /bin/sh "$here/install-appimage" > "$work/failure" 2>&1 \
+  && { echo 'FAIL: shared ~/.local accepted'; exit 1; }
+[ -z "$(ls -A "$work/shared-local-home/.local/bin")" ] || { echo 'FAIL: shared ~/.local got files'; exit 1; }
+# $TMPDIR is never used: an unsafe one (writable by all, not sticky) changes nothing and stays empty.
+mkdir -p "$work/open-tmp" "$work/tmpdir-home"; chmod 777 "$work/open-tmp"
+HOME="$work/tmpdir-home" TMPDIR="$work/open-tmp" PATH="$work/bin" /bin/sh "$here/install-appimage" > "$work/failure" 2>&1 \
+  || { echo 'FAIL: install with an unsafe TMPDIR'; cat "$work/failure"; exit 1; }
+[ -z "$(ls -A "$work/open-tmp")" ] || { echo 'FAIL: installer wrote into TMPDIR'; exit 1; }
 # A directory appearing at the target during the download: ln -T fails, nothing lands inside it.
 mkdir -p "$work/race-home"
 HOME="$work/race-home" MAPRISMA_TEST_MKDIR_TARGET="$work/race-home/.local/bin/maprisma" PATH="$work/bin" \
@@ -214,7 +224,7 @@ set -- "$work/committed-home/.local/bin"/.maprisma-install.*
 [ ! -e "$1" ] || { echo 'FAIL: committed stage remained'; exit 1; }
 # The stand-in rm signals again while the clean-up removes the stage: the
 # clean-up must still finish and remove the download folder.
-for left in "$work/tmp"/maprisma-install.*; do
+for left in "$work/tmp"/maprisma-install/download.*; do
   [ ! -d "$left" ] || { echo 'FAIL: a second signal cut the clean-up short'; exit 1; }
 done
 rm "$work/bin/rm"

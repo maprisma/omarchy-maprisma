@@ -94,8 +94,8 @@ runs in a visible terminal, fetches only the latest release from Maprisma's GitH
 the matching SHA-256, installs for this user and opens Maprisma in a session of its own (`setsid`), so
 closing the terminal leaves it running. The installer refuses an unexpected asset name, download host,
 missing or mismatched checksum, an existing target file or folder (also one that appears during the
-download), a `~/.local/bin` or lock folder that other accounts may write to, and a second install while
-one runs. An existing `~/.local/bin` keeps its own permissions.
+download), a `~/.local/bin` or lock folder (or a folder above them) that other accounts may write to, and a
+second install while one runs. The download stays in the private lock folder, not in `$TMPDIR`. An existing `~/.local/bin` keeps its own permissions.
 
 The plugin starts nothing when the shell starts and runs no background service. Its `installer`
 capability is used only after the user's click and confirmation; it downloads the AppImage and checksum

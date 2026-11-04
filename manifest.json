@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "ubruckhaus.maprisma",
   "name": "Maprisma",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "author": "Uwe Bruckhaus",
   "license": "MIT",
   "description": "Your AI agents, local LLMs, models, MCP servers and skills on one map: draw a line to connect them, with a short check first and Undo after. Ask AI suggests questions and can make the same changes for you. Nothing to set up by hand: a click on the bar icon offers to install the Maprisma app; after you confirm, it installs it for your user (download from GitHub, SHA-256 checked, no password) and opens it.",

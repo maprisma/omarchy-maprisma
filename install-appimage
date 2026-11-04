@@ -43,7 +43,7 @@ download() {
 }
 
 [ "$(uname -m)" = x86_64 ] || fail 'The current AppImage is for x86_64 PCs.'
-for tool in curl jq sha256sum awk mktemp mkdir install ln flock setsid stat; do
+for tool in curl jq sha256sum awk mktemp mkdir install ln flock setsid stat id dirname; do
   command -v "$tool" >/dev/null 2>&1 || fail "The installer needs $tool."
 done
 # A folder only this user can change: a real directory (no symlink), owned by us, and neither group nor
@@ -57,11 +57,36 @@ private_dir() {
   group=${group#"${group%?}"}
   case "$group$other" in *[2367]*) return 1 ;; esac
 }
+# An ancestor of such a folder: nobody else may rename entries in it. Ours or root's and not writable
+# by group or others, or root's with the sticky bit (like /tmp). A symlink only if root owns it.
+stable_dir() {
+  owner=$(stat -c '%u' -- "$1") || return 1
+  [ "$owner" = "$uid" ] || [ "$owner" = 0 ] || return 1
+  if [ -L "$1" ]; then [ "$owner" = 0 ]; return; fi
+  [ -d "$1" ] || return 1
+  mode=$(stat -c '%a' -- "$1") || return 1
+  other=${mode#"${mode%?}"}
+  group=${mode%?}
+  group=${group#"${group%?}"}
+  case "$group$other" in *[2367]*) ;; *) return 0 ;; esac
+  [ "$owner" = 0 ] && [ ${#mode} -eq 4 ] && case "$mode" in [1357]*) true ;; *) false ;; esac
+}
+# The folder itself private, and every folder above it stable, up to /.
+private_tree() {
+  private_dir "$1" || return 1
+  up=$(dirname -- "$1")
+  while :; do
+    stable_dir "$up" || return 1
+    [ "$up" = / ] && return 0
+    up=$(dirname -- "$up")
+  done
+}
 # One install at a time. The lock is a private directory, opened read-only and locked as it is: no
 # lock file to truncate, no FIFO to block on, nothing written. Its parent must be private too.
+uid=$(id -u)
 lock_parent=${XDG_RUNTIME_DIR:-$HOME/.cache}
 [ -n "${XDG_RUNTIME_DIR:-}" ] || mkdir -p -m 700 "$lock_parent" 2>/dev/null || :
-private_dir "$lock_parent" || fail 'The folder for the install lock may be changed by others.'
+private_tree "$lock_parent" || fail 'The folder for the install lock may be changed by others.'
 lock=$lock_parent/maprisma-install
 [ -e "$lock" ] || [ -L "$lock" ] || mkdir -m 700 "$lock" 2>/dev/null || :
 private_dir "$lock" || fail 'Could not prepare the install.'
@@ -70,7 +95,9 @@ flock -n 9 || fail 'Maprisma is already being installed in another window.'
 target_dir=$HOME/.local/bin
 target=$target_dir/maprisma
 [ ! -e "$target" ] && [ ! -L "$target" ] || fail 'A Maprisma file already exists at ~/.local/bin/maprisma.'
-temp_dir=$(mktemp -d "${TMPDIR:-/tmp}/maprisma-install.XXXXXXXX") || fail 'Could not make a private download folder.'
+# The download goes into the private lock folder, never into $TMPDIR: nobody else can swap the
+# checked file before it is copied.
+temp_dir=$(mktemp -d "$lock/download.XXXXXXXX") || fail 'Could not make a private download folder.'
 printf 'Looking for the latest Maprisma release…\n'
 download 45 1048576 "$release_api" "$temp_dir/release.json" \
   || fail 'No Maprisma release is available yet.'
@@ -103,7 +130,7 @@ printf 'The SHA-256 checksum matches the release. Installing for this user…\n'
 # Create ~/.local/bin only when it is missing; an existing folder keeps its own mode.
 [ -e "$target_dir" ] || [ -L "$target_dir" ] || mkdir -p -m 755 "$target_dir" || fail 'Could not create ~/.local/bin.'
 # Only this user may change ~/.local/bin, so the stage name below cannot be planted or swapped.
-private_dir "$target_dir" || fail '~/.local/bin may be changed by others; Maprisma was not installed.'
+private_tree "$target_dir" || fail '~/.local/bin or a folder above it may be changed by others; Maprisma was not installed.'
 [ ! -e "$target" ] && [ ! -L "$target" ] || fail 'A Maprisma file already exists at ~/.local/bin/maprisma.'
 # The private download directory already has a random name. Set the stage
 # path before creating it, so a signal cannot leave an unnamed hidden file.
