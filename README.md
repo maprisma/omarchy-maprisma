@@ -27,9 +27,29 @@ A bar icon for **Maprisma**: your AI agents, local LLMs, models, MCP servers and
 
 ## Install
 
-This plugin is only the bar icon. Install the **Maprisma** app first: the AppImage from the
-[GitHub release](https://github.com/maprisma/maprisma/releases), checked against its SHA-256 and placed on
-your `PATH` as `maprisma`:
+Add the plugin first, then click its bar icon:
+
+```sh
+omarchy plugin add https://github.com/maprisma/omarchy-maprisma
+```
+
+If the app is missing, the bar icon opens an **Install Maprisma?** panel. Choose
+**Install AppImage** to watch the download, with a progress bar, in a terminal. The installer compares
+the AppImage with the release's SHA-256 file before it puts `maprisma` in `~/.local/bin/`, then opens the
+app. Later clicks show or hide its window. **Not now** leaves your PC unchanged. Ctrl+C or closing the
+terminal cancels the download; once installation has finished, the app remains available from the bar icon.
+No administrator password is needed.
+
+The checksum catches a broken or incomplete download; it comes from the same GitHub release as the
+AppImage, so it is not a signature.
+
+This setup needs the Omarchy-provided `xdg-terminal-exec`, plus `curl`, `jq`, `sha256sum` and
+util-linux (`flock`, `setsid`). If `fuse2` is absent, the AppImage uses its extract-and-run mode. If the
+latest release or its checksum is unavailable, the terminal explains that nothing was installed and shows
+the [release page](https://github.com/maprisma/maprisma/releases). Only one install runs at a time.
+To remove the app later: `rm ~/.local/bin/maprisma`.
+
+Without a terminal launcher, the bar icon says so in a notification. Install by hand instead:
 
 ```sh
 v=0.12.0; f=Maprisma-$v-x86_64.AppImage
@@ -38,14 +58,6 @@ curl -fLO "https://github.com/maprisma/maprisma/releases/download/v$v/$f"
 curl -fLO "https://github.com/maprisma/maprisma/releases/download/v$v/$f.sha256"
 sha256sum -c "$f.sha256"
 install -Dm755 "$f" ~/.local/bin/maprisma
-```
-
-(AppImages need `fuse2`, which Omarchy ships. To remove the app: `rm ~/.local/bin/maprisma`.)
-
-Then add the bar plugin:
-
-```sh
-omarchy plugin add https://github.com/maprisma/omarchy-maprisma
 ```
 
 Remove the plugin anytime with:
@@ -60,17 +72,22 @@ omarchy plugin remove ubruckhaus.maprisma
 
 ## What the plugin does
 
-`BarWidget.qml` runs `maprisma-toggle` when the icon is clicked. The script runs `maprisma --toggle`: the
-app keeps a single window and shows it, or hides it when it is shown and focused. If the app is not
-installed, the script shows a plain-text desktop notification with the install instruction above.
+`BarWidget.qml` runs `maprisma-toggle` when the icon is clicked. The script runs `maprisma --toggle` when
+the app is present. When it is missing, the bar widget opens its install panel. After consent, `install-appimage`
+runs in a visible terminal, fetches only the latest release from Maprisma's GitHub repository, checks
+the matching SHA-256, installs for this user and opens Maprisma in a session of its own (`setsid`), so
+closing the terminal leaves it running. The installer refuses an unexpected asset name, download host,
+missing or mismatched checksum, an existing target file and a second install while one runs.
 
-The plugin itself installs nothing, starts nothing when the shell starts, runs no background service, opens
-no network connection and takes no input. Everything Maprisma does happens in the app, which shows a preview
-before it changes any file. All settings belong to the app (`~/.config/maprisma`).
+The plugin starts nothing when the shell starts and runs no background service. Its `installer`
+capability is used only after the user's click and confirmation; it downloads the AppImage and checksum
+from GitHub, writes the checked app in `~/.local/bin/`, and launches it. Maprisma's own settings belong
+to the app (`~/.config/maprisma`).
 
 ## Tests
 
-`sh tests/test-toggle.sh` tests the toggle script with a stand-in app and notifier.
+`sh tests/test-toggle.sh` tests installed and first-install flows, release and checksum failures, a second
+install while one runs and a missing terminal launcher, using stand-in commands.
 
 ## License
 

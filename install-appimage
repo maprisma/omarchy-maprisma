@@ -1,0 +1,104 @@
+#!/bin/sh
+# Called after the bar icon's confirmation, in a visible terminal.
+# Release metadata and both assets come only from Maprisma's GitHub release.
+set -eu
+umask 077
+
+release_page=https://github.com/maprisma/maprisma/releases
+release_api=https://api.github.com/repos/maprisma/maprisma/releases/latest
+temp_dir=
+stage=
+target=
+committed=false
+cleanup() {
+  # A second Ctrl+C or a closing window must not cut the clean-up short.
+  trap '' INT HUP TERM
+  if [ -n "$stage" ]; then
+    # A signal can arrive after ln creates the final name but before the
+    # shell reaches the next assignment. Both names still share an inode.
+    if [ "$committed" != true ] && [ -n "$target" ] && [ -e "$target" ] && [ "$stage" -ef "$target" ]; then
+      rm -f -- "$target"
+    fi
+    rm -f -- "$stage"
+  fi
+  if [ -n "$temp_dir" ]; then rm -rf -- "$temp_dir"; fi
+}
+trap cleanup EXIT
+# Ctrl+C or a closed window: stop here; the EXIT trap removes partial files.
+trap 'if [ "$committed" = true ]; then printf "\nMaprisma is installed; open it with the bar icon.\n" >&2; else printf "\nCancelled. Nothing was installed.\n" >&2; fi; exit 130' INT
+trap 'exit 129' HUP
+trap 'exit 143' TERM
+fail() {
+  printf '\nMaprisma could not be installed: %s\n' "$1" >&2
+  printf 'Release page: %s\n' "$release_page" >&2
+  if [ -t 0 ]; then printf 'Press Enter to close this window. '; read -r _unused || :; fi
+  exit 1
+}
+# A fifth argument "progress" shows a progress bar (the AppImage itself).
+download() {
+  shown=--silent
+  if [ "${5:-}" = progress ]; then shown=--progress-bar; fi
+  curl --fail --location "$shown" --show-error --proto '=https' --proto-redir '=https' \
+    --connect-timeout 15 --max-time "$1" --max-filesize "$2" "$3" -o "$4"
+}
+
+[ "$(uname -m)" = x86_64 ] || fail 'The current AppImage is for x86_64 PCs.'
+for tool in curl jq sha256sum awk mktemp install ln flock setsid; do
+  command -v "$tool" >/dev/null 2>&1 || fail "The installer needs $tool."
+done
+# One install at a time: a second click while this one runs waits for nothing.
+lock=${XDG_RUNTIME_DIR:-${TMPDIR:-/tmp}}/maprisma-install.lock
+exec 9>"$lock" || fail 'Could not prepare the install.'
+flock -n 9 || fail 'Maprisma is already being installed in another window.'
+target_dir=$HOME/.local/bin
+target=$target_dir/maprisma
+[ ! -e "$target" ] && [ ! -L "$target" ] || fail 'A Maprisma file already exists at ~/.local/bin/maprisma.'
+temp_dir=$(mktemp -d "${TMPDIR:-/tmp}/maprisma-install.XXXXXXXX") || fail 'Could not make a private download folder.'
+printf 'Looking for the latest Maprisma release…\n'
+download 45 1048576 "$release_api" "$temp_dir/release.json" \
+  || fail 'No Maprisma release is available yet.'
+asset=$(jq -er '[.assets[]?.name | select(test("^Maprisma-[0-9][A-Za-z0-9._-]*-x86_64\\.AppImage$"))] | if length == 1 then .[0] else empty end' "$temp_dir/release.json") \
+  || fail 'The latest release has no single x86_64 Maprisma AppImage.'
+image_url=$(jq -er --arg name "$asset" '[.assets[]? | select(.name == $name) | .browser_download_url] | if length == 1 then .[0] else empty end' "$temp_dir/release.json") \
+  || fail 'The AppImage link is missing.'
+checksum_url=$(jq -er --arg name "$asset.sha256" '[.assets[]? | select(.name == $name) | .browser_download_url] | if length == 1 then .[0] else empty end' "$temp_dir/release.json") \
+  || fail 'The release has no matching SHA-256 file.'
+case "$image_url" in
+  "https://github.com/maprisma/maprisma/releases/download/"*"/$asset") ;;
+  *) fail 'The AppImage link is outside the Maprisma release.' ;;
+esac
+case "$checksum_url" in
+  "https://github.com/maprisma/maprisma/releases/download/"*"/$asset.sha256") ;;
+  *) fail 'The checksum link is outside the Maprisma release.' ;;
+esac
+
+printf 'Downloading %s…\n' "$asset"
+download 1800 1073741824 "$image_url" "$temp_dir/$asset" progress || fail 'The AppImage download failed.'
+download 45 65536 "$checksum_url" "$temp_dir/checksum" || fail 'The checksum download failed.'
+[ "$(wc -l < "$temp_dir/checksum")" -eq 1 ] || fail 'The release checksum is not one line.'
+expected=$(awk -v name="$asset" 'NF == 2 && $2 == name && length($1) == 64 && $1 ~ /^[0-9a-fA-F]+$/ {print tolower($1)}' "$temp_dir/checksum")
+[ -n "$expected" ] || fail 'The release checksum has the wrong format or filename.'
+actual=$(sha256sum "$temp_dir/$asset")
+actual=${actual%% *}
+[ "$actual" = "$expected" ] || fail 'The AppImage checksum does not match. Nothing was installed.'
+
+printf 'The SHA-256 checksum matches the release. Installing for this user…\n'
+install -d -m 755 "$target_dir" || fail 'Could not create ~/.local/bin.'
+[ ! -e "$target" ] && [ ! -L "$target" ] || fail 'A Maprisma file already exists at ~/.local/bin/maprisma.'
+# The private download directory already has a random name. Set the stage
+# path before creating it, so a signal cannot leave an unnamed hidden file.
+candidate_stage=$target_dir/.maprisma-install.${temp_dir##*/}
+[ ! -e "$candidate_stage" ] && [ ! -L "$candidate_stage" ] || fail 'Could not prepare the app folder.'
+stage=$candidate_stage
+install -m 755 "$temp_dir/$asset" "$stage" || fail 'Could not copy the checked AppImage.'
+ln -- "$stage" "$target" || fail 'Could not place Maprisma in ~/.local/bin.'
+committed=true
+rm -f -- "$stage"
+stage=
+printf 'Installed. Opening Maprisma…\n'
+# A session of its own: closing this terminal must not take the app with it.
+if [ -e /usr/lib/libfuse.so.2 ]; then
+  setsid -f "$target" --toggle </dev/null >/dev/null 2>&1
+else
+  APPIMAGE_EXTRACT_AND_RUN=1 setsid -f "$target" --toggle </dev/null >/dev/null 2>&1
+fi

@@ -1,17 +1,37 @@
 #!/bin/sh
-# Open or close Maprisma (a separate app, the AppImage from
-# github.com/maprisma/maprisma/releases). The app keeps one window; --toggle shows it, or hides it when
-# it is shown and focused. Not installed: a plain-text note says how to get it.
-#
-# This script installs nothing and takes no input.
-set -u
+# Open or close the app, or hand the user-approved install to a terminal.
+set -eu
 app=$(command -v maprisma 2>/dev/null || true)
-if [ -n "$app" ]; then
+if [ -z "$app" ] && [ -x "$HOME/.local/bin/maprisma" ] && [ ! -L "$HOME/.local/bin/maprisma" ]; then
+  app=$HOME/.local/bin/maprisma
+fi
+launch_app() {
+  if [ "$app" = "$HOME/.local/bin/maprisma" ] && [ ! -e /usr/lib/libfuse.so.2 ]; then
+    APPIMAGE_EXTRACT_AND_RUN=1 exec "$app" --toggle
+  fi
   exec "$app" --toggle
-fi
-if command -v notify-send >/dev/null 2>&1; then
-  # -u normal, no markup in the text, no action that runs anything.
-  exec notify-send -a "Maprisma" "Maprisma is not installed" \
-    "Download the AppImage from github.com/maprisma/maprisma/releases and put it on your PATH as maprisma (see the plugin README)."
-fi
-exit 1
+}
+case "${1:-}" in
+  --probe)
+    [ "$#" -eq 1 ] && [ -n "$app" ]
+    ;;
+  --install)
+    [ "$#" -eq 1 ] || exit 2
+    [ -z "$app" ] || launch_app
+    if ! command -v xdg-terminal-exec >/dev/null 2>&1; then
+      # No terminal to show the install in: say so instead of doing nothing.
+      if command -v notify-send >/dev/null 2>&1; then
+        notify-send -a Maprisma "Maprisma could not be installed" \
+          "No terminal launcher (xdg-terminal-exec) was found. See the plugin README for the manual install."
+      fi
+      exit 1
+    fi
+    script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+    exec xdg-terminal-exec --title='Install Maprisma' -- /bin/sh "$script_dir/install-appimage"
+    ;;
+  '')
+    [ -n "$app" ] || exit 1
+    launch_app
+    ;;
+  *) exit 2 ;;
+esac
