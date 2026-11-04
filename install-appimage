@@ -71,19 +71,28 @@ stable_dir() {
   case "$group$other" in *[2367]*) ;; *) return 0 ;; esac
   [ "$owner" = 0 ] && [ ${#mode} -eq 4 ] && case "$mode" in [1357]*) true ;; *) false ;; esac
 }
+# An absolute, normalised path: no trailing slash, no //, no . or .. part. Then every symlink test
+# and the walk below see each real component.
+plain_path() {
+  case "$1" in /?*) ;; *) return 1 ;; esac
+  case "$1" in */ | *//* | */./* | */../* | */. | */..) return 1 ;; esac
+}
 # The folder itself private, and every folder above it stable, up to /.
 private_tree() {
-  private_dir "$1" || return 1
-  up=$(dirname -- "$1")
+  plain_path "$1" && private_dir "$1" || return 1
+  here=$1
   while :; do
+    up=$(dirname -- "$here")
+    [ "$up" != "$here" ] || return 1
     stable_dir "$up" || return 1
     [ "$up" = / ] && return 0
-    up=$(dirname -- "$up")
+    here=$up
   done
 }
 # One install at a time. The lock is a private directory, opened read-only and locked as it is: no
 # lock file to truncate, no FIFO to block on, nothing written. Its parent must be private too.
 uid=$(id -u)
+plain_path "$HOME" || fail 'HOME is not a plain absolute path.'
 lock_parent=${XDG_RUNTIME_DIR:-$HOME/.cache}
 [ -n "${XDG_RUNTIME_DIR:-}" ] || mkdir -p -m 700 "$lock_parent" 2>/dev/null || :
 private_tree "$lock_parent" || fail 'The folder for the install lock may be changed by others.'

@@ -143,6 +143,14 @@ hostile() {  # name, then the setup run in the lock's parent folder
 hostile permissive 'chmod 777 .'
 grep -q 'may be changed by others' "$work/failure" || { echo 'FAIL: permissive folder not explained'; exit 1; }
 hostile fifo 'mkfifo maprisma-install'
+# A runtime folder given with a trailing slash, a relative one, and one with a dot part: refused
+# before any use (a trailing slash would look through a symlink; a relative one could loop).
+for odd in "$work/tmp/" . "$work/./tmp"; do
+  ( HOME="$work/odd-home" XDG_RUNTIME_DIR="$odd" PATH="$work/bin" "$timeout" 20 \
+    /bin/sh "$here/install-appimage" < /dev/null > "$work/failure" 2>&1 ) && status=0 || status=$?
+  [ "$status" -ne 0 ] && [ "$status" -ne 124 ] || { echo "FAIL: odd runtime folder $odd (exit $status)"; exit 1; }
+  grep -q 'may be changed by others' "$work/failure" || { echo "FAIL: odd runtime folder $odd not explained"; exit 1; }
+done
 hostile file 'printf "keep\n" > maprisma-install'
 [ "$(cat "$work/hostile-file/run/maprisma-install")" = keep ] || { echo 'FAIL: lock file contents changed'; exit 1; }
 # ~/.local/bin that others may write to: refused before any stage file is made there.
