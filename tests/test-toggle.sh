@@ -5,7 +5,7 @@ here=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 work=$(mktemp -d)
 trap 'rm -rf -- "$work"' EXIT HUP INT TERM
 mkdir -p "$work/bin" "$work/with" "$work/release" "$work/tmp" "$work/home"
-for tool in dirname uname jq sha256sum awk mktemp mkdir install ln wc rm cp flock setsid sleep; do
+for tool in dirname uname jq sha256sum awk mktemp mkdir install ln wc rm cp flock setsid sleep stat; do
   ln -s "$(command -v "$tool")" "$work/bin/$tool"
 done
 cat > "$work/bin/xdg-terminal-exec" <<'SH'
@@ -30,6 +30,8 @@ case "$url" in
     [ "${MAPRISMA_TEST_NO_RELEASE:-0}" != 1 ] || exit 22
     cp "$MAPRISMA_TEST_RELEASE/release.json" "$destination" ;;
   */Maprisma-1.0.0-x86_64.AppImage)
+    # A directory appearing at the target while the download runs (the race ln -T must catch).
+    [ -z "${MAPRISMA_TEST_MKDIR_TARGET:-}" ] || mkdir -p "$MAPRISMA_TEST_MKDIR_TARGET"
     cp "$MAPRISMA_TEST_RELEASE/image" "$destination" ;;
   */Maprisma-1.0.0-x86_64.AppImage.sha256)
     cp "$MAPRISMA_TEST_RELEASE/checksum" "$destination" ;;
@@ -104,7 +106,8 @@ grep -q 'xdg-terminal-exec' "$work/notify-home/notified" || { echo 'FAIL: no not
 
 # A second install while one runs is refused and leaves nothing behind.
 mkdir "$work/busy-home"
-exec 8>"$work/tmp/maprisma-install.lock"
+mkdir -p -m 700 "$work/tmp/maprisma-install"
+exec 8<"$work/tmp/maprisma-install"
 flock -n 8
 HOME="$work/busy-home" PATH="$work/bin" /bin/sh "$here/install-appimage" > "$work/failure" 2>&1 \
   && { echo 'FAIL: second install ran'; exit 1; }
@@ -117,14 +120,49 @@ exec 8>&-
 mkdir -p "$work/nolock-home"
 ( unset XDG_RUNTIME_DIR; HOME="$work/nolock-home" MAPRISMA_TEST_NO_RELEASE=1 PATH="$work/bin" \
   /bin/sh "$here/install-appimage" > "$work/failure" 2>&1 ) && { echo 'FAIL: no-runtime-dir run succeeded'; exit 1; }
-[ -f "$work/nolock-home/.cache/maprisma-install.lock" ] || { echo 'FAIL: lock not in ~/.cache'; exit 1; }
+[ -d "$work/nolock-home/.cache/maprisma-install" ] || { echo 'FAIL: lock not in ~/.cache'; exit 1; }
 mkdir -p "$work/planted-home/.cache"
 printf 'keep\n' > "$work/victim"
-ln -s "$work/victim" "$work/planted-home/.cache/maprisma-install.lock"
+ln -s "$work/victim" "$work/planted-home/.cache/maprisma-install"
 ( unset XDG_RUNTIME_DIR; HOME="$work/planted-home" PATH="$work/bin" \
   /bin/sh "$here/install-appimage" > "$work/failure" 2>&1 ) && { echo 'FAIL: planted lock accepted'; exit 1; }
 [ "$(cat "$work/victim")" = keep ] || { echo 'FAIL: planted lock truncated its target'; exit 1; }
 [ ! -e "$work/planted-home/.local/bin/maprisma" ] || { echo 'FAIL: planted lock installed'; exit 1; }
+# Hostile lock paths: a runtime folder others may write to, a FIFO (must not block), a regular file
+# with contents (refused and untouched).
+timeout=$(command -v timeout)
+hostile() {  # name, then the setup run in the lock's parent folder
+  name=$1; shift
+  h=$work/hostile-$name; mkdir -p "$h/home" "$h/run"; chmod 700 "$h/run"
+  ( cd "$h/run" && eval "$*" )
+  ( HOME="$h/home" XDG_RUNTIME_DIR="$h/run" PATH="$work/bin" "$timeout" 20 \
+    /bin/sh "$here/install-appimage" < /dev/null > "$work/failure" 2>&1 ) && status=0 || status=$?
+  [ "$status" -ne 0 ] && [ "$status" -ne 124 ] || { echo "FAIL: hostile lock $name (exit $status)"; exit 1; }
+  [ ! -e "$h/home/.local/bin/maprisma" ] || { echo "FAIL: hostile lock $name installed"; exit 1; }
+}
+hostile permissive 'chmod 777 .'
+grep -q 'may be changed by others' "$work/failure" || { echo 'FAIL: permissive folder not explained'; exit 1; }
+hostile fifo 'mkfifo maprisma-install'
+hostile file 'printf "keep\n" > maprisma-install'
+[ "$(cat "$work/hostile-file/run/maprisma-install")" = keep ] || { echo 'FAIL: lock file contents changed'; exit 1; }
+# ~/.local/bin that others may write to: refused before any stage file is made there.
+mkdir -p "$work/shared-bin-home/.local/bin"; chmod 777 "$work/shared-bin-home/.local/bin"
+HOME="$work/shared-bin-home" PATH="$work/bin" /bin/sh "$here/install-appimage" > "$work/failure" 2>&1 \
+  && { echo 'FAIL: shared ~/.local/bin accepted'; exit 1; }
+[ -z "$(ls -A "$work/shared-bin-home/.local/bin")" ] || { echo 'FAIL: shared ~/.local/bin got files'; exit 1; }
+[ "$(stat -c %a "$work/shared-bin-home/.local/bin")" = 777 ] || { echo 'FAIL: installer changed the mode of ~/.local/bin'; exit 1; }
+# A private ~/.local/bin (700) keeps its mode after an install.
+mkdir -p "$work/private-bin-home/.local/bin"; chmod 700 "$work/private-bin-home/.local/bin"
+HOME="$work/private-bin-home" PATH="$work/bin" /bin/sh "$here/install-appimage" > "$work/failure" 2>&1 \
+  || { echo 'FAIL: install into a private ~/.local/bin'; cat "$work/failure"; exit 1; }
+[ "$(stat -c %a "$work/private-bin-home/.local/bin")" = 700 ] || { echo 'FAIL: private ~/.local/bin opened up'; exit 1; }
+# A directory appearing at the target during the download: ln -T fails, nothing lands inside it.
+mkdir -p "$work/race-home"
+HOME="$work/race-home" MAPRISMA_TEST_MKDIR_TARGET="$work/race-home/.local/bin/maprisma" PATH="$work/bin" \
+  /bin/sh "$here/install-appimage" > "$work/failure" 2>&1 && { echo 'FAIL: directory at target accepted'; exit 1; }
+[ -z "$(ls -A "$work/race-home/.local/bin/maprisma")" ] || { echo 'FAIL: app linked into the directory'; exit 1; }
+set -- "$work/race-home/.local/bin"/.maprisma-install.*
+[ ! -e "$1" ] || { echo 'FAIL: race left a stage'; exit 1; }
 
 mkdir "$work/failed-home"
 HOME="$work/failed-home" MAPRISMA_TEST_NO_RELEASE=1 \

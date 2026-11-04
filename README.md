@@ -1,9 +1,9 @@
 # Maprisma for Omarchy
 
 A bar icon for **Maprisma**: your AI agents, local LLMs, models, MCP servers and skills on one map.
-New to AI tools? The bar icon installs the app for you.
+New to AI tools? The bar icon offers to install the app for you, and starts only after you confirm.
 
-![Maprisma: the map, drawing a connection, Ask AI and the one-click install](preview.png)
+![Maprisma: the map, the guided install from the bar, drawing a connection and Ask AI](preview.png)
 
 ---
 
@@ -93,7 +93,9 @@ the app is present. When it is missing, the bar widget opens its install panel. 
 runs in a visible terminal, fetches only the latest release from Maprisma's GitHub repository, checks
 the matching SHA-256, installs for this user and opens Maprisma in a session of its own (`setsid`), so
 closing the terminal leaves it running. The installer refuses an unexpected asset name, download host,
-missing or mismatched checksum, an existing target file and a second install while one runs.
+missing or mismatched checksum, an existing target file or folder (also one that appears during the
+download), a `~/.local/bin` or lock folder that other accounts may write to, and a second install while
+one runs. An existing `~/.local/bin` keeps its own permissions.
 
 The plugin starts nothing when the shell starts and runs no background service. Its `installer`
 capability is used only after the user's click and confirmation; it downloads the AppImage and checksum
