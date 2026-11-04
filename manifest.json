@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "id": "ubruckhaus.maprisma",
+  "name": "Maprisma",
+  "version": "0.1.0",
+  "author": "Uwe Bruckhaus",
+  "license": "MIT",
+  "description": "Your AI agents, local LLMs, models, MCP servers and skills on one map: connect them by drawing lines, with a preview and Undo for every change. See each coding agent's plan, limits, usage and what it may do without asking you; install llama.cpp, Ollama and other local LLMs with checked downloads and get each model's best context for your graphics card. (Requires the Maprisma AppImage.)",
+  "homepage": "https://github.com/maprisma/maprisma",
+  "repository": "https://github.com/maprisma/omarchy-maprisma",
+  "keywords": [
+    "ai",
+    "agents",
+    "llm",
+    "mcp",
+    "skills",
+    "llama.cpp",
+    "ollama",
+    "claude",
+    "codex",
+    "maprisma",
+    "omarchy"
+  ],
+  "kinds": [
+    "bar-widget"
+  ],
+  "keepLoaded": false,
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Maprisma",
+    "description": "Open or close Maprisma",
+    "category": "System",
+    "allowMultiple": false,
+    "defaultSection": "right"
+  }
+}

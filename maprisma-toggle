@@ -1,0 +1,17 @@
+#!/bin/sh
+# Open or close Maprisma (a separate app, the AppImage from
+# github.com/maprisma/maprisma/releases). The app keeps one window; --toggle shows it, or hides it when
+# it is shown and focused. Not installed: a plain-text note says how to get it.
+#
+# This script installs nothing and takes no input.
+set -u
+app=$(command -v maprisma 2>/dev/null || true)
+if [ -n "$app" ]; then
+  exec "$app" --toggle
+fi
+if command -v notify-send >/dev/null 2>&1; then
+  # -u normal, no markup in the text, no action that runs anything.
+  exec notify-send -a "Maprisma" "Maprisma is not installed" \
+    "Download the AppImage from github.com/maprisma/maprisma/releases and put it on your PATH as maprisma (see the plugin README)."
+fi
+exit 1
