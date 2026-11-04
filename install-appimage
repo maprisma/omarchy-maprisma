@@ -107,14 +107,13 @@ image_url=$(jq -er --arg name "$asset" '[.assets[]? | select(.name == $name) | .
   || fail 'The AppImage link is missing.'
 checksum_url=$(jq -er --arg name "$asset.sha256" '[.assets[]? | select(.name == $name) | .browser_download_url] | if length == 1 then .[0] else empty end' "$temp_dir/release.json") \
   || fail 'The release has no matching SHA-256 file.'
-case "$image_url" in
-  "https://github.com/maprisma/maprisma/releases/download/"*"/$asset") ;;
-  *) fail 'The AppImage link is outside the Maprisma release.' ;;
-esac
-case "$checksum_url" in
-  "https://github.com/maprisma/maprisma/releases/download/"*"/$asset.sha256") ;;
-  *) fail 'The checksum link is outside the Maprisma release.' ;;
-esac
+# Each link must be exactly the expected one: this release's tag (letters, digits, dots, dashes,
+# starting with v and a digit), then the asset name. No other path, dot segments, query or fragment.
+tag=$(jq -er '.tag_name | strings | select(test("^v[0-9][A-Za-z0-9._-]*$"))' "$temp_dir/release.json") \
+  || fail 'The latest release has no valid tag.'
+base=https://github.com/maprisma/maprisma/releases/download/$tag
+[ "$image_url" = "$base/$asset" ] || fail 'The AppImage link is outside the Maprisma release.'
+[ "$checksum_url" = "$base/$asset.sha256" ] || fail 'The checksum link is outside the Maprisma release.'
 
 printf 'Downloading %s…\n' "$asset"
 download 1800 1073741824 "$image_url" "$temp_dir/$asset" progress || fail 'The AppImage download failed.'

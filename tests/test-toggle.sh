@@ -51,7 +51,7 @@ asset=Maprisma-1.0.0-x86_64.AppImage
 digest=$(sha256sum "$work/release/image")
 printf '%s  %s\n' "${digest%% *}" "$asset" > "$work/release/checksum"
 cat > "$work/release/release.json" <<EOF
-{"assets":[
+{"tag_name":"v1.0.0","assets":[
   {"name":"$asset","browser_download_url":"https://github.com/maprisma/maprisma/releases/download/v1.0.0/$asset"},
   {"name":"$asset.sha256","browser_download_url":"https://github.com/maprisma/maprisma/releases/download/v1.0.0/$asset.sha256"}
 ]}
@@ -235,7 +235,7 @@ HOME="$work/failed-home" PATH="$work/bin" \
   && { echo 'FAIL: wrong checksum succeeded'; exit 1; }
 [ ! -e "$work/failed-home/.local/bin/maprisma" ] || { echo 'FAIL: wrong checksum installed'; exit 1; }
 cat > "$work/release/release.json" <<EOF
-{"assets":[
+{"tag_name":"v1.0.0","assets":[
   {"name":"$asset","browser_download_url":"https://example.com/$asset"},
   {"name":"$asset.sha256","browser_download_url":"https://github.com/maprisma/maprisma/releases/download/v1.0.0/$asset.sha256"}
 ]}
@@ -243,6 +243,19 @@ EOF
 HOME="$work/failed-home" PATH="$work/bin" \
   /bin/sh "$here/maprisma-toggle" --install > "$work/failure" 2>&1 \
   && { echo 'FAIL: outside release link accepted'; exit 1; }
+# Dot segments between the release prefix and the asset (curl would normalise them into another
+# repository): refused, even when both links agree.
+evil=https://github.com/maprisma/maprisma/releases/download/v1.0.0/../../../../other/repo/releases/download/v1.0.0
+cat > "$work/release/release.json" <<EOF
+{"tag_name":"v1.0.0","assets":[
+  {"name":"$asset","browser_download_url":"$evil/$asset"},
+  {"name":"$asset.sha256","browser_download_url":"$evil/$asset.sha256"}
+]}
+EOF
+HOME="$work/failed-home" PATH="$work/bin" /bin/sh "$here/install-appimage" > "$work/failure" 2>&1 \
+  && { echo 'FAIL: dot-segment link accepted'; exit 1; }
+grep -q 'outside the Maprisma release' "$work/failure" || { echo 'FAIL: dot-segment link not explained'; exit 1; }
+[ ! -e "$work/failed-home/.local/bin/maprisma" ] || { echo 'FAIL: dot-segment link installed'; exit 1; }
 [ ! -e "$work/failed-home/.local/bin/maprisma" ] || { echo 'FAIL: outside link installed'; exit 1; }
 mkdir -p "$work/failed-home/.local/bin"
 printf 'keep\n' > "$work/keep"
