@@ -68,12 +68,12 @@ To remove the app later: `rm ~/.local/bin/maprisma`.
 Without a terminal launcher, the bar icon says so in a notification. Install by hand instead:
 
 ```sh
-v=0.13.0; f=Maprisma-$v-x86_64.AppImage
+v=0.14.0; f=Maprisma-$v-x86_64.AppImage
 cd "$(mktemp -d)"
 curl -fLO "https://github.com/maprisma/maprisma/releases/download/v$v/$f"
 curl -fLO "https://github.com/maprisma/maprisma/releases/download/v$v/$f.sha256"
 sha256sum -c "$f.sha256"
-install -Dm755 "$f" ~/.local/bin/maprisma
+[ ! -e ~/.local/bin/maprisma ] && [ ! -L ~/.local/bin/maprisma ] && install -Dm755 "$f" ~/.local/bin/maprisma
 ```
 
 Remove the plugin anytime with:
@@ -94,7 +94,7 @@ runs in a visible terminal, fetches only the latest release from Maprisma's GitH
 the matching SHA-256, installs for this user and opens Maprisma in a session of its own (`setsid`), so
 closing the terminal leaves it running. The installer refuses an unexpected asset name, download host,
 missing or mismatched checksum, an existing target file or folder (also one that appears during the
-download), a `~/.local/bin` or lock folder (or a folder above them) that other accounts may write to, and a
+download), a `~/.local/bin` or lock folder (or a folder above them) that other accounts may write to or that is a symlink, and a
 second install while one runs. The download stays in the private lock folder, not in `$TMPDIR`. An existing `~/.local/bin` keeps its own permissions.
 
 The plugin starts nothing when the shell starts and runs no background service. Its `installer`

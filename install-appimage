@@ -57,13 +57,13 @@ private_dir() {
   group=${group#"${group%?}"}
   case "$group$other" in *[2367]*) return 1 ;; esac
 }
-# An ancestor of such a folder: nobody else may rename entries in it. Ours or root's and not writable
-# by group or others, or root's with the sticky bit (like /tmp). A symlink only if root owns it.
+# An ancestor of such a folder: nobody else may rename entries in it. A real directory (never a
+# symlink, whoever owns it), ours or root's and not writable by group or others, or root's with the
+# sticky bit (like /tmp).
 stable_dir() {
+  [ -d "$1" ] && [ ! -L "$1" ] || return 1
   owner=$(stat -c '%u' -- "$1") || return 1
   [ "$owner" = "$uid" ] || [ "$owner" = 0 ] || return 1
-  if [ -L "$1" ]; then [ "$owner" = 0 ]; return; fi
-  [ -d "$1" ] || return 1
   mode=$(stat -c '%a' -- "$1") || return 1
   other=${mode#"${mode%?}"}
   group=${mode%?}

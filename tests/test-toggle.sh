@@ -169,6 +169,13 @@ mkdir -p "$work/shared-local-home/.local/bin"; chmod 777 "$work/shared-local-hom
 HOME="$work/shared-local-home" PATH="$work/bin" /bin/sh "$here/install-appimage" > "$work/failure" 2>&1 \
   && { echo 'FAIL: shared ~/.local accepted'; exit 1; }
 [ -z "$(ls -A "$work/shared-local-home/.local/bin")" ] || { echo 'FAIL: shared ~/.local got files'; exit 1; }
+# A symlinked folder above ~/.local/bin (here HOME itself, reached through a link): refused, nothing
+# written behind the link.
+mkdir -p "$work/real-home/.local/bin"; ln -s "$work/real-home" "$work/linked-home"
+HOME="$work/linked-home" PATH="$work/bin" /bin/sh "$here/install-appimage" > "$work/failure" 2>&1 \
+  && { echo 'FAIL: symlinked home accepted'; exit 1; }
+grep -q 'may be changed by others' "$work/failure" || { echo 'FAIL: symlinked home not explained'; exit 1; }
+[ -z "$(ls -A "$work/real-home/.local/bin")" ] || { echo 'FAIL: symlinked home got files'; exit 1; }
 # $TMPDIR is never used: an unsafe one (writable by all, not sticky) changes nothing and stays empty.
 mkdir -p "$work/open-tmp" "$work/tmpdir-home"; chmod 777 "$work/open-tmp"
 HOME="$work/tmpdir-home" TMPDIR="$work/open-tmp" PATH="$work/bin" /bin/sh "$here/install-appimage" > "$work/failure" 2>&1 \
