@@ -65,16 +65,10 @@ latest release or its checksum is unavailable, the terminal explains that nothin
 the [release page](https://github.com/maprisma/maprisma/releases). Only one install runs at a time.
 To remove the app later: `rm ~/.local/bin/maprisma`.
 
-Without a terminal launcher, the bar icon says so in a notification. Install by hand instead:
-
-```sh
-v=0.14.0; f=Maprisma-$v-x86_64.AppImage
-cd "$(mktemp -d)"
-curl -fLO "https://github.com/maprisma/maprisma/releases/download/v$v/$f"
-curl -fLO "https://github.com/maprisma/maprisma/releases/download/v$v/$f.sha256"
-sha256sum -c "$f.sha256"
-[ ! -e ~/.local/bin/maprisma ] && [ ! -L ~/.local/bin/maprisma ] && install -Dm755 "$f" ~/.local/bin/maprisma
-```
+Without a terminal launcher, the bar icon says so in a notification. To install by hand instead, download
+`Maprisma-<version>-x86_64.AppImage` and its `.sha256` file from the
+[latest release](https://github.com/maprisma/maprisma/releases/latest), check it with `sha256sum -c`, and put
+it on your `PATH` as `maprisma` in a folder only you can change. The release notes show the commands.
 
 Remove the plugin anytime with:
 
@@ -89,7 +83,7 @@ omarchy plugin remove ubruckhaus.maprisma
 ## What the plugin does
 
 `BarWidget.qml` runs `maprisma-toggle` when the icon is clicked. The script runs `maprisma --toggle` when
-the app is present. When it is missing, the bar widget opens its install panel. After consent, `install-appimage`
+the app is present (on `PATH`, or as `~/.local/bin/maprisma` only when that folder passes the installer's folder check and the app is the user's own regular file). When it is missing, the bar widget opens its install panel. After consent, `install-appimage`
 runs in a visible terminal, fetches only the latest release from Maprisma's GitHub repository, checks
 the matching SHA-256, installs for this user and opens Maprisma in a session of its own (`setsid`), so
 closing the terminal leaves it running. The installer refuses an unexpected asset name, download host,

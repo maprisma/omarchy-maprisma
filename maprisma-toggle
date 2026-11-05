@@ -2,8 +2,15 @@
 # Open or close the app, or hand the user-approved install to a terminal.
 set -eu
 app=$(command -v maprisma 2>/dev/null || true)
-if [ -z "$app" ] && [ -x "$HOME/.local/bin/maprisma" ] && [ ! -L "$HOME/.local/bin/maprisma" ]; then
-  app=$HOME/.local/bin/maprisma
+# Installed by install-appimage but ~/.local/bin not on PATH: used only when the installer would accept
+# that folder (ours, written only by us, no symlink or folder others may change above it) and the app
+# there is our own regular file, not a link.
+if [ -z "$app" ]; then
+  fallback=$HOME/.local/bin/maprisma
+  if [ -f "$fallback" ] && [ ! -L "$fallback" ] && [ -O "$fallback" ] && [ -x "$fallback" ] &&
+    . "${0%/*}/folder-checks.sh" && private_tree "$HOME/.local/bin"; then
+    app=$fallback
+  fi
 fi
 launch_app() {
   if [ "$app" = "$HOME/.local/bin/maprisma" ] && [ ! -e /usr/lib/libfuse.so.2 ]; then

@@ -89,6 +89,17 @@ for n in 1 2 3 4 5 6 7 8 9 10; do
   sleep .1
 done
 [ "$(cat "$HOME/launched")" = '--toggle' ] || { echo 'FAIL: app not opened'; exit 1; }
+# The installed app is found in ~/.local/bin without PATH, but not from a ~/.local/bin others may write
+# to, through a symlinked home, or when the app there is a link.
+PATH="$work/bin" /bin/sh "$here/maprisma-toggle" --probe || { echo 'FAIL: installed app not found'; exit 1; }
+chmod 777 "$HOME/.local/bin"
+if PATH="$work/bin" /bin/sh "$here/maprisma-toggle" --probe; then echo 'FAIL: shared ~/.local/bin trusted'; exit 1; fi
+chmod 755 "$HOME/.local/bin"
+ln -s "$HOME" "$work/home-link"
+if HOME="$work/home-link" PATH="$work/bin" /bin/sh "$here/maprisma-toggle" --probe; then echo 'FAIL: symlinked home trusted'; exit 1; fi
+mv "$HOME/.local/bin/maprisma" "$work/real-app"; ln -s "$work/real-app" "$HOME/.local/bin/maprisma"
+if PATH="$work/bin" /bin/sh "$here/maprisma-toggle" --probe; then echo 'FAIL: linked app trusted'; exit 1; fi
+rm "$HOME/.local/bin/maprisma"; mv "$work/real-app" "$HOME/.local/bin/maprisma"
 PATH="$work/bin" /bin/sh "$here/maprisma-toggle"
 [ "$(cat "$HOME/launched")" = '--toggle' ] || { echo 'FAIL: second click'; exit 1; }
 
