@@ -42,6 +42,9 @@ BarWidget {
     }
   }
 
+  // See-through with the window style (Theme Manager → Settings).
+  PopupGlass { inside: keys; active: installPanel.open }
+
   KeyboardPanel {
     id: installPanel
     bar: root.bar
