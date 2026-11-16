@@ -52,7 +52,7 @@ digest=$(sha256sum "$work/release/image")
 pinned_version=$(sed -n 's/^version=\([0-9][0-9.]*\)$/\1/p' "$here/install-appimage")
 pinned_sha=$(sed -n 's/^sha256=\([0-9a-f]\{64\}\)$/\1/p' "$here/install-appimage")
 [ -n "$pinned_version" ] && [ -n "$pinned_sha" ] || { echo 'FAIL: installer has no pinned version and SHA-256'; exit 1; }
-! grep -q 'releases/latest\|api.github.com' "$here/install-appimage" || { echo 'FAIL: installer looks up a release'; exit 1; }
+! grep -Eq 'releases/latest|api\.github\.com' "$here/install-appimage" || { echo 'FAIL: installer looks up a release'; exit 1; }
 # The tests run a copy of the plugin pinned to the fake 1.0.0 build.
 mkdir "$work/plugin"
 cp "$here"/install-appimage "$here"/maprisma-toggle "$here"/folder-checks.sh "$here"/I18n.js "$here"/*.qml "$work/plugin/"
