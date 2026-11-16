@@ -12,8 +12,8 @@ New to AI tools? The bar icon offers to install the app for you, and starts only
 1. **Add the plugin:** `omarchy plugin add https://github.com/maprisma/omarchy-maprisma`
 2. **Click the robot icon in the bar.** Maprisma isn't on your PC yet, so a small panel asks
    **Install Maprisma?** Choose **Install AppImage** (or **Not now**: nothing changes).
-3. **Watch it install.** A terminal downloads the latest Maprisma release from GitHub with a progress bar,
-   compares it with the release's SHA-256 checksum, puts it in `~/.local/bin/` for your user and opens
+3. **Watch it install.** A terminal downloads Maprisma 0.14.7 from GitHub with a progress bar,
+   checks it against the SHA-256 pinned in this plugin, puts it in `~/.local/bin/` for your user and opens
    Maprisma. No administrator password, no package manager, nothing running in the background.
 
 From then on the same icon shows or hides Maprisma.
@@ -51,23 +51,25 @@ omarchy plugin add https://github.com/maprisma/omarchy-maprisma
 
 If the app is missing, the bar icon opens an **Install Maprisma?** panel. Choose
 **Install AppImage** to watch the download, with a progress bar, in a terminal. The installer compares
-the AppImage with the release's SHA-256 file before it puts `maprisma` in `~/.local/bin/`, then opens the
+the AppImage with the SHA-256 written in the plugin before it puts `maprisma` in `~/.local/bin/`, then opens the
 app. Later clicks show or hide its window. **Not now** leaves your PC unchanged. Ctrl+C or closing the
 terminal cancels the download; once installation has finished, the app remains available from the bar icon.
 No administrator password is needed.
 
-The checksum catches a broken or incomplete download; it comes from the same GitHub release as the
-AppImage, so it is not a signature.
+The plugin installs exactly one reviewed build: its version and SHA-256 are part of the plugin
+(`install-appimage`), so a changed or replaced release file is refused. Each Maprisma release brings a plugin
+update with the new pin. Maprisma's own updates (inside the app) are separate.
 
-This setup needs the Omarchy-provided `xdg-terminal-exec`, plus `curl`, `jq`, `sha256sum` and
+This setup needs the Omarchy-provided `xdg-terminal-exec`, plus `curl`, `sha256sum` and
 util-linux (`flock`, `setsid`). If `fuse2` is absent, the AppImage uses its extract-and-run mode. If the
-latest release or its checksum is unavailable, the terminal explains that nothing was installed and shows
-the [release page](https://github.com/maprisma/maprisma/releases). Only one install runs at a time.
+download fails or the file is not the pinned build, the terminal explains that nothing was installed and
+shows the release page. Only one install runs at a time.
 To remove the app later: `rm ~/.local/bin/maprisma`.
 
 Without a terminal launcher, the bar icon says so in a notification. To install by hand instead, download
-`Maprisma-<version>-x86_64.AppImage` and its `.sha256` file from the
-[latest release](https://github.com/maprisma/maprisma/releases/latest), check it with `sha256sum -c`, and put
+`Maprisma-0.14.7-x86_64.AppImage` from the
+[0.14.7 release](https://github.com/maprisma/maprisma/releases/tag/v0.14.7), check that `sha256sum` prints the
+value pinned in `install-appimage`, and put
 it on your `PATH` as `maprisma` in a folder only you can change. The release notes show the commands.
 
 Remove the plugin anytime with:
@@ -84,10 +86,9 @@ omarchy plugin remove ubruckhaus.maprisma
 
 `BarWidget.qml` runs `maprisma-toggle` when the icon is clicked. The script runs `maprisma --toggle` when
 the app is present (on `PATH`, or as `~/.local/bin/maprisma` only when that folder passes the installer's folder check and the app is the user's own regular file). When it is missing, the bar widget opens its install panel. After consent, `install-appimage`
-runs in a visible terminal, fetches only the latest release from Maprisma's GitHub repository, checks
-the matching SHA-256, installs for this user and opens Maprisma in a session of its own (`setsid`), so
-closing the terminal leaves it running. The installer refuses an unexpected asset name, download host,
-missing or mismatched checksum, an existing target file or folder (also one that appears during the
+runs in a visible terminal, fetches only the pinned build's address in Maprisma's GitHub releases, checks
+it against the pinned SHA-256, installs for this user and opens Maprisma in a session of its own (`setsid`), so
+closing the terminal leaves it running. The installer refuses any file whose SHA-256 is not the pinned one, an existing target file or folder (also one that appears during the
 download), a `~/.local/bin` or lock folder (or a folder above them) that other accounts may write to or that is a symlink, and a
 second install while one runs. The download stays in the private lock folder, not in `$TMPDIR`. An existing `~/.local/bin` keeps its own permissions.
 

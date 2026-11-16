@@ -5,7 +5,7 @@ here=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 work=$(mktemp -d)
 trap 'rm -rf -- "$work"' EXIT HUP INT TERM
 mkdir -p "$work/bin" "$work/with" "$work/release" "$work/tmp" "$work/home"
-for tool in dirname uname jq sha256sum awk mktemp mkdir install ln wc rm cp flock setsid sleep stat id; do
+for tool in dirname uname sha256sum mktemp mkdir install ln wc rm cp flock setsid sleep stat id; do
   ln -s "$(command -v "$tool")" "$work/bin/$tool"
 done
 cat > "$work/bin/xdg-terminal-exec" <<'SH'
@@ -25,16 +25,13 @@ while [ "$#" -gt 0 ]; do
     *) shift ;;
   esac
 done
+printf '%s\n' "$url" >> "$MAPRISMA_TEST_RELEASE/urls"
 case "$url" in
-  https://api.github.com/repos/maprisma/maprisma/releases/latest)
+  https://github.com/maprisma/maprisma/releases/download/v1.0.0/Maprisma-1.0.0-x86_64.AppImage)
     [ "${MAPRISMA_TEST_NO_RELEASE:-0}" != 1 ] || exit 22
-    cp "$MAPRISMA_TEST_RELEASE/release.json" "$destination" ;;
-  */Maprisma-1.0.0-x86_64.AppImage)
     # A directory appearing at the target while the download runs (the race ln -T must catch).
     [ -z "${MAPRISMA_TEST_MKDIR_TARGET:-}" ] || mkdir -p "$MAPRISMA_TEST_MKDIR_TARGET"
     cp "$MAPRISMA_TEST_RELEASE/image" "$destination" ;;
-  */Maprisma-1.0.0-x86_64.AppImage.sha256)
-    cp "$MAPRISMA_TEST_RELEASE/checksum" "$destination" ;;
   *) exit 22 ;;
 esac
 SH
@@ -49,13 +46,16 @@ SH
 chmod +x "$work/bin/xdg-terminal-exec" "$work/bin/curl" "$work/with/maprisma" "$work/release/image"
 asset=Maprisma-1.0.0-x86_64.AppImage
 digest=$(sha256sum "$work/release/image")
-printf '%s  %s\n' "${digest%% *}" "$asset" > "$work/release/checksum"
-cat > "$work/release/release.json" <<EOF
-{"tag_name":"v1.0.0","assets":[
-  {"name":"$asset","browser_download_url":"https://github.com/maprisma/maprisma/releases/download/v1.0.0/$asset"},
-  {"name":"$asset.sha256","browser_download_url":"https://github.com/maprisma/maprisma/releases/download/v1.0.0/$asset.sha256"}
-]}
-EOF
+# The shipped installer pins one reviewed build: a version and its SHA-256, nothing looked up.
+pinned_version=$(sed -n 's/^version=\([0-9][0-9.]*\)$/\1/p' "$here/install-appimage")
+pinned_sha=$(sed -n 's/^sha256=\([0-9a-f]\{64\}\)$/\1/p' "$here/install-appimage")
+[ -n "$pinned_version" ] && [ -n "$pinned_sha" ] || { echo 'FAIL: installer has no pinned version and SHA-256'; exit 1; }
+! grep -q 'releases/latest\|api.github.com' "$here/install-appimage" || { echo 'FAIL: installer looks up a release'; exit 1; }
+# The tests run a copy of the plugin pinned to the fake 1.0.0 build.
+mkdir "$work/plugin"
+cp "$here"/install-appimage "$here"/maprisma-toggle "$here"/folder-checks.sh "$here"/I18n.js "$here"/*.qml "$work/plugin/"
+sed -i "s/^version=.*/version=1.0.0/; s/^sha256=.*/sha256=${digest%% *}/" "$work/plugin/install-appimage"
+here=$work/plugin
 export MAPRISMA_TEST_LOG="$work/dialog" MAPRISMA_TEST_RELEASE="$work/release"
 export TMPDIR="$work/tmp" HOME="$work/home" XDG_RUNTIME_DIR="$work/tmp"
 
@@ -255,34 +255,17 @@ for left in "$work/tmp"/maprisma-install/download.*; do
 done
 rm "$work/bin/rm"
 mv "$work/bin/rm.real" "$work/bin/rm"
-printf '%064d  %s\n' 0 "$asset" > "$work/release/checksum"
+cp "$work/release/image" "$work/release/image.good"
+printf '#!/bin/sh\necho another build\n' > "$work/release/image"
 HOME="$work/failed-home" PATH="$work/bin" \
   /bin/sh "$here/maprisma-toggle" --install > "$work/failure" 2>&1 \
-  && { echo 'FAIL: wrong checksum succeeded'; exit 1; }
-[ ! -e "$work/failed-home/.local/bin/maprisma" ] || { echo 'FAIL: wrong checksum installed'; exit 1; }
-cat > "$work/release/release.json" <<EOF
-{"tag_name":"v1.0.0","assets":[
-  {"name":"$asset","browser_download_url":"https://example.com/$asset"},
-  {"name":"$asset.sha256","browser_download_url":"https://github.com/maprisma/maprisma/releases/download/v1.0.0/$asset.sha256"}
-]}
-EOF
-HOME="$work/failed-home" PATH="$work/bin" \
-  /bin/sh "$here/maprisma-toggle" --install > "$work/failure" 2>&1 \
-  && { echo 'FAIL: outside release link accepted'; exit 1; }
-# Dot segments between the release prefix and the asset (curl would normalise them into another
-# repository): refused, even when both links agree.
-evil=https://github.com/maprisma/maprisma/releases/download/v1.0.0/../../../../other/repo/releases/download/v1.0.0
-cat > "$work/release/release.json" <<EOF
-{"tag_name":"v1.0.0","assets":[
-  {"name":"$asset","browser_download_url":"$evil/$asset"},
-  {"name":"$asset.sha256","browser_download_url":"$evil/$asset.sha256"}
-]}
-EOF
-HOME="$work/failed-home" PATH="$work/bin" /bin/sh "$here/install-appimage" > "$work/failure" 2>&1 \
-  && { echo 'FAIL: dot-segment link accepted'; exit 1; }
-grep -q 'outside the Maprisma release' "$work/failure" || { echo 'FAIL: dot-segment link not explained'; exit 1; }
-[ ! -e "$work/failed-home/.local/bin/maprisma" ] || { echo 'FAIL: dot-segment link installed'; exit 1; }
-[ ! -e "$work/failed-home/.local/bin/maprisma" ] || { echo 'FAIL: outside link installed'; exit 1; }
+  && { echo 'FAIL: another build behind the pinned address was installed'; exit 1; }
+grep -q 'not the reviewed build' "$work/failure" || { echo 'FAIL: changed build not explained'; exit 1; }
+[ ! -e "$work/failed-home/.local/bin/maprisma" ] || { echo 'FAIL: changed build installed'; exit 1; }
+mv "$work/release/image.good" "$work/release/image"
+# Only the pinned address is ever fetched.
+! grep -v '^https://github.com/maprisma/maprisma/releases/download/v1.0.0/Maprisma-1.0.0-x86_64.AppImage$' \
+  "$work/release/urls" || { echo 'FAIL: another address was fetched'; exit 1; }
 mkdir -p "$work/failed-home/.local/bin"
 printf 'keep\n' > "$work/keep"
 ln -s "$work/keep" "$work/failed-home/.local/bin/maprisma"

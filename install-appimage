@@ -1,11 +1,14 @@
 #!/bin/sh
 # Called after the bar icon's confirmation, in a visible terminal.
-# Release metadata and both assets come only from Maprisma's GitHub release.
+# Installs exactly one reviewed Maprisma build: the version and the SHA-256 below are part of this
+# plugin, so what is installed cannot change without a new plugin version (a new marketplace review).
 set -eu
 umask 077
 
-release_page=https://github.com/maprisma/maprisma/releases
-release_api=https://api.github.com/repos/maprisma/maprisma/releases/latest
+# The pinned build (tools: tests/test-toggle.sh checks the format; bump both with each release).
+version=0.14.7
+sha256=a67fe7fc866b991c68db49354977c19cfdb2f81d3319e40fb10b0129d529b1b4
+release_page=https://github.com/maprisma/maprisma/releases/tag/v$version
 temp_dir=
 stage=
 target=
@@ -43,7 +46,7 @@ download() {
 }
 
 [ "$(uname -m)" = x86_64 ] || fail 'The current AppImage is for x86_64 PCs.'
-for tool in curl jq sha256sum awk mktemp mkdir install ln flock setsid stat id dirname; do
+for tool in curl sha256sum mktemp mkdir install ln flock setsid stat id dirname; do
   command -v "$tool" >/dev/null 2>&1 || fail "The installer needs $tool."
 done
 # private_dir / private_tree: the folder checks shared with maprisma-toggle.
@@ -65,34 +68,15 @@ target=$target_dir/maprisma
 # The download goes into the private lock folder, never into $TMPDIR: nobody else can swap the
 # checked file before it is copied.
 temp_dir=$(mktemp -d "$lock/download.XXXXXXXX") || fail 'Could not make a private download folder.'
-printf 'Looking for the latest Maprisma release…\n'
-download 45 1048576 "$release_api" "$temp_dir/release.json" \
-  || fail 'No Maprisma release is available yet.'
-asset=$(jq -er '[.assets[]?.name | select(test("^Maprisma-[0-9][A-Za-z0-9._-]*-x86_64\\.AppImage$"))] | if length == 1 then .[0] else empty end' "$temp_dir/release.json") \
-  || fail 'The latest release has no single x86_64 Maprisma AppImage.'
-image_url=$(jq -er --arg name "$asset" '[.assets[]? | select(.name == $name) | .browser_download_url] | if length == 1 then .[0] else empty end' "$temp_dir/release.json") \
-  || fail 'The AppImage link is missing.'
-checksum_url=$(jq -er --arg name "$asset.sha256" '[.assets[]? | select(.name == $name) | .browser_download_url] | if length == 1 then .[0] else empty end' "$temp_dir/release.json") \
-  || fail 'The release has no matching SHA-256 file.'
-# Each link must be exactly the expected one: this release's tag (letters, digits, dots, dashes,
-# starting with v and a digit), then the asset name. No other path, dot segments, query or fragment.
-tag=$(jq -er '.tag_name | strings | select(test("^v[0-9][A-Za-z0-9._-]*$"))' "$temp_dir/release.json") \
-  || fail 'The latest release has no valid tag.'
-base=https://github.com/maprisma/maprisma/releases/download/$tag
-[ "$image_url" = "$base/$asset" ] || fail 'The AppImage link is outside the Maprisma release.'
-[ "$checksum_url" = "$base/$asset.sha256" ] || fail 'The checksum link is outside the Maprisma release.'
-
-printf 'Downloading %s…\n' "$asset"
+asset=Maprisma-$version-x86_64.AppImage
+image_url=https://github.com/maprisma/maprisma/releases/download/v$version/$asset
+printf 'Downloading Maprisma %s…\n' "$version"
 download 1800 1073741824 "$image_url" "$temp_dir/$asset" progress || fail 'The AppImage download failed.'
-download 45 65536 "$checksum_url" "$temp_dir/checksum" || fail 'The checksum download failed.'
-[ "$(wc -l < "$temp_dir/checksum")" -eq 1 ] || fail 'The release checksum is not one line.'
-expected=$(awk -v name="$asset" 'NF == 2 && $2 == name && length($1) == 64 && $1 ~ /^[0-9a-fA-F]+$/ {print tolower($1)}' "$temp_dir/checksum")
-[ -n "$expected" ] || fail 'The release checksum has the wrong format or filename.'
 actual=$(sha256sum "$temp_dir/$asset")
 actual=${actual%% *}
-[ "$actual" = "$expected" ] || fail 'The AppImage checksum does not match. Nothing was installed.'
+[ "$actual" = "$sha256" ] || fail 'The AppImage is not the reviewed build (its SHA-256 differs). Nothing was installed.'
 
-printf 'The SHA-256 checksum matches the release. Installing for this user…\n'
+printf 'The SHA-256 matches the reviewed build. Installing for this user…\n'
 # Create ~/.local/bin only when it is missing; an existing folder keeps its own mode.
 [ -e "$target_dir" ] || [ -L "$target_dir" ] || mkdir -p -m 755 "$target_dir" || fail 'Could not create ~/.local/bin.'
 # Only this user may change ~/.local/bin, so the stage name below cannot be planted or swapped.
