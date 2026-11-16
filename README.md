@@ -58,7 +58,9 @@ No administrator password is needed.
 
 The plugin installs exactly one reviewed build: its version and SHA-256 are part of the plugin
 (`install-appimage`), so a changed or replaced release file is refused. Each Maprisma release brings a plugin
-update with the new pin. Maprisma's own updates (inside the app) are separate.
+update with the new pin. The installer only installs when Maprisma is missing: an existing
+`~/.local/bin/maprisma` is never replaced, so a newer pin does not upgrade an installed app (remove the file
+first to install the new pinned build).
 
 This setup needs the Omarchy-provided `xdg-terminal-exec`, plus `curl`, `sha256sum` and
 util-linux (`flock`, `setsid`). If `fuse2` is absent, the AppImage uses its extract-and-run mode. If the
@@ -93,8 +95,9 @@ download), a `~/.local/bin` or lock folder (or a folder above them) that other a
 second install while one runs. The download stays in the private lock folder, not in `$TMPDIR`. An existing `~/.local/bin` keeps its own permissions.
 
 The plugin starts nothing when the shell starts and runs no background service. Its `installer`
-capability is used only after the user's click and confirmation; it downloads the AppImage and checksum
-from GitHub, writes the checked app in `~/.local/bin/`, and launches it. Maprisma's own settings belong
+capability is used only after the user's click and confirmation; it downloads the one AppImage pinned in the
+plugin (version and SHA-256 in `install-appimage`) from its GitHub release address, writes it to `~/.local/bin/`
+only when the SHA-256 matches, and launches it. Maprisma's own settings belong
 to the app (`~/.config/maprisma`).
 
 ## Tests

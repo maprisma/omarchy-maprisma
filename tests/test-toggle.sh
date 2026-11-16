@@ -1,6 +1,8 @@
 #!/bin/sh
 # Fixture-only: never reaches GitHub or a real terminal.
 set -eu
+umask 077                     # the installer's folder checks need private test folders
+exec </dev/null                  # never wait for a key press
 here=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 work=$(mktemp -d)
 trap 'rm -rf -- "$work"' EXIT HUP INT TERM

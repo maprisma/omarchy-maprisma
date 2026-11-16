@@ -46,7 +46,7 @@ download() {
 }
 
 [ "$(uname -m)" = x86_64 ] || fail 'The current AppImage is for x86_64 PCs.'
-for tool in curl sha256sum mktemp mkdir install ln flock setsid stat id dirname; do
+for tool in curl sha256sum mktemp mkdir install ln flock setsid stat id; do
   command -v "$tool" >/dev/null 2>&1 || fail "The installer needs $tool."
 done
 # private_dir / private_tree: the folder checks shared with maprisma-toggle.
